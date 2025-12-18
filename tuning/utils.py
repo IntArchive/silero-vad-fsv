@@ -9,6 +9,7 @@ import warnings
 import random
 import torch
 import gc
+import os
 warnings.filterwarnings('ignore')
 
 
@@ -203,13 +204,34 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
+def save_checkpoint(config, decoder, optimizer, epoch, step, best_val_roc):
+    """Save training checkpoint to disk."""
+    checkpoint_dir = os.path.dirname(config.checkpoint_save_path)
+    if checkpoint_dir and not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir, exist_ok=True)
+    
+    checkpoint = {
+        'decoder_state_dict': decoder.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'epoch': epoch,
+        'step': step,
+        'best_val_roc': best_val_roc,
+    }
+    torch.save(checkpoint, config.checkpoint_save_path)
+    print(f'Checkpoint saved at step {step} (epoch {epoch + 1}) to {config.checkpoint_save_path}')
+
+
 def train(config,
           loader,
           jit_model,
           decoder,
           criterion,
           optimizer,
-          device):
+          device,
+          writer=None,
+          epoch=0,
+          global_step=0,
+          checkpoint_callback=None):
 
     losses = AverageMeter()
     decoder.train()
@@ -219,8 +241,9 @@ def train(config,
     stft_layer = jit_model._model_8k.stft if config.tune_8k else jit_model._model.stft
     encoder_layer = jit_model._model_8k.encoder if config.tune_8k else jit_model._model.encoder
 
+    current_step = global_step
     with torch.enable_grad():
-        for _, (x, targets, masks) in tqdm(enumerate(loader), total=len(loader)):
+        for batch_idx, (x, targets, masks) in tqdm(enumerate(loader), total=len(loader)):
             targets = targets.to(device)
             x = x.to(device)
             masks = masks.to(device)
@@ -242,11 +265,21 @@ def train(config,
             loss.backward()
             optimizer.step()
             losses.update(loss.item(), masks.numel())
+            
+            current_step += 1
+            
+            # Log to tensorboard if writer is provided
+            if writer is not None:
+                writer.add_scalar('TrainLoss/step', loss.item(), current_step)
+            
+            # Call checkpoint callback if provided and step is a multiple of 500 (but not at step 0)
+            if checkpoint_callback is not None and current_step > 0 and current_step % 500 == 0:
+                checkpoint_callback(current_step)
 
     torch.cuda.empty_cache()
     gc.collect()
 
-    return losses.avg
+    return losses.avg, current_step
 
 
 def validate(config,

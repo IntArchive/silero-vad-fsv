@@ -1,7 +1,11 @@
-from utils import SileroVadDataset, SileroVadPadder, VADDecoderRNNJIT, train, validate, init_jit_model
+from utils import SileroVadDataset, SileroVadPadder, VADDecoderRNNJIT, train, validate, init_jit_model, save_checkpoint
 from omegaconf import OmegaConf
 import torch.nn as nn
 import torch
+
+# Record SummaryWriter 
+from torch.utils.tensorboard import SummaryWriter
+
 
 
 if __name__ == '__main__':
@@ -11,13 +15,14 @@ if __name__ == '__main__':
     train_loader = torch.utils.data.DataLoader(train_dataset,
                                                batch_size=config.batch_size,
                                                collate_fn=SileroVadPadder,
-                                               num_workers=config.num_workers)
-
+                                               num_workers=config.num_workers,
+                                               persistent_workers=True)
     val_dataset = SileroVadDataset(config, mode='val')
     val_loader = torch.utils.data.DataLoader(val_dataset,
                                              batch_size=config.batch_size,
                                              collate_fn=SileroVadPadder,
-                                             num_workers=config.num_workers)
+                                             num_workers=config.num_workers,
+                                             persistent_workers=True)
 
     if config.jit_model_path:
         print(f'Loading model from the local folder: {config.jit_model_path}')
@@ -33,9 +38,11 @@ if __name__ == '__main__':
             print('Loading model using silero-vad library')
             from silero_vad import load_silero_vad
             model = load_silero_vad(onnx=False)
+    
 
     print('Model loaded')
     model.to(config.device)
+
     decoder = VADDecoderRNNJIT().to(config.device)
     decoder.load_state_dict(model._model_8k.decoder.state_dict() if config.tune_8k else model._model.decoder.state_dict())
     decoder.train()
@@ -45,14 +52,30 @@ if __name__ == '__main__':
     criterion = nn.BCELoss(reduction='none')
 
     best_val_roc = 0
+    global_step = 0
+
+    # Initialize writer once before the loop
+    writer = SummaryWriter(config.logdir_tensorboard)  # Logs are saved in 'runs/...'
+
     for i in range(config.num_epochs):
+        epoch_count_from_0 = i
+
         print(f'Starting epoch {i + 1}')
-        train_loss = train(config, train_loader, model, decoder, criterion, optimizer, config.device)
+        
+        # Define checkpoint callback function
+        def checkpoint_callback(step):
+            save_checkpoint(config, decoder, optimizer, epoch_count_from_0, step, best_val_roc)
+        
+        train_loss, global_step = train(config, train_loader, model, decoder, criterion, optimizer, 
+                                        config.device, writer, epoch_count_from_0, global_step, checkpoint_callback)
         val_loss, val_roc = validate(config, val_loader, model, decoder, criterion, config.device)
         print(f'Metrics after epoch {i + 1}:\n'
               f'\tTrain loss: {round(train_loss, 3)}\n',
               f'\tValidation loss: {round(val_loss, 3)}\n'
               f'\tValidation ROC-AUC: {round(val_roc, 3)}')
+        writer.add_scalar('TrainLoss/epoch', round(train_loss, 3), i + 1)
+        writer.add_scalar('ValLoss/epoch', round(val_loss, 3), i + 1)
+        writer.add_scalar('Validation ROC-AUC',round(val_roc, 3), i + 1)
 
         if val_roc > best_val_roc:
             print('New best ROC-AUC, saving model')
@@ -62,4 +85,9 @@ if __name__ == '__main__':
             else:
                 model._model.decoder.load_state_dict(decoder.state_dict())
             torch.jit.save(model, config.model_save_path)
+        
+
+    # Close the writer
+    writer.close()
+
     print('Done')
