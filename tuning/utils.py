@@ -273,7 +273,7 @@ def train(config,
                 writer.add_scalar('TrainLoss/step', loss.item(), current_step)
             
             # Call checkpoint callback if provided and step is a multiple of 500 (but not at step 0)
-            if checkpoint_callback is not None and current_step > 0 and current_step % 500 == 0:
+            if checkpoint_callback is not None and current_step > 0 and current_step % 10 == 0:
                 checkpoint_callback(current_step)
 
     torch.cuda.empty_cache()
@@ -288,7 +288,6 @@ def validate(config,
              decoder,
              criterion,
              device):
-
     losses = AverageMeter()
     decoder.eval()
 
@@ -323,7 +322,29 @@ def validate(config,
             loss = criterion(stacked, targets)
             loss = (loss * masks).mean()
             losses.update(loss.item(), masks.numel())
-    score = roc_auc_score(gts, predicts)
+
+    # Convert to numpy for easier inspection
+    predicts_np = np.asarray(predicts, dtype=float)
+    gts_np = np.asarray(gts, dtype=float)
+
+    # Debug / safety checks to avoid NaN ROC-AUC and to make the problem visible
+    if predicts_np.size == 0 or gts_np.size == 0:
+        print('validate(): empty predicts or gts - cannot compute ROC-AUC')
+        score = float('nan')
+    elif np.isnan(predicts_np).any() or np.isnan(gts_np).any():
+        print('validate(): NaNs found in predicts or gts - cannot compute reliable ROC-AUC')
+        print(f'  predicts has_nan={np.isnan(predicts_np).any()}, gts has_nan={np.isnan(gts_np).any()}')
+        score = float('nan')
+    else:
+        unique_classes = np.unique(gts_np)
+        if unique_classes.size < 2:
+            # This usually means that your validation annotations only contain a single class
+            # (all-speech or all-non-speech). ROC-AUC is undefined in this case.
+            print('validate(): only one class present in validation ground truth - ROC-AUC is undefined.')
+            print(f'  unique classes in gts: {unique_classes}')
+            score = float('nan')
+        else:
+            score = roc_auc_score(gts_np, predicts_np)
 
     torch.cuda.empty_cache()
     gc.collect()

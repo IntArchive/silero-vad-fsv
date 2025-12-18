@@ -2,8 +2,8 @@ jit_model_path: './src/silero_vad/data/silero_vad.jit'
 use_torchhub: True  
 
 tune_8k: False  
-train_dataset_path: '/content/mls_polish_opus/feather/train.feather'  
-val_dataset_path: '/content/mls_polish_opus/feather/dev.feather'  
+train_dataset_path: '/content/silero-vad-fsv/datasets/MLS/train.feather'  
+val_dataset_path: '/content/silero-vad-fsv/datasets/MLS/test.feather'  
 model_save_path: 'model_save_path.jit'  
 
 noise_loss: 0.5  
@@ -11,10 +11,10 @@ max_train_length_sec: 8
 aug_prob: 0.4  
 
 learning_rate: 5e-4  
-batch_size: 128  
-num_workers: 4  
+batch_size: 64  
+num_workers: 8  
 num_epochs: 20  
-device: 'cpu'  
+device: 'cuda'  
 
 logdir_tensorboard: '/content/runs/tuning'
 checkpoint_save_path: '/content/checkpoints/best_checkpoint.pth'
