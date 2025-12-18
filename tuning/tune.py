@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 if __name__ == '__main__':
-    config = OmegaConf.load('config.yml')
+    config = OmegaConf.load('./tuning/config.yml')
 
     train_dataset = SileroVadDataset(config, mode='train')
     train_loader = torch.utils.data.DataLoader(train_dataset,
