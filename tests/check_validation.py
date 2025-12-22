@@ -4,8 +4,9 @@ import numpy as np
 import gc
 from tqdm import tqdm
 from sklearn.metrics import roc_auc_score
+from omegaconf import OmegaConf
 import torch.nn as nn
-from ..tuning.utils import VADDecoderRNNJIT
+from ..tuning.utils import VADDecoderRNNJIT, SileroVadDataset
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -96,6 +97,8 @@ def validate(loader,
     return losses.avg, round(score, 3)
 
 if __name__ == '__main__':
+    config = OmegaConf.load('./tuning/config.yml')
+    dataset = SileroVadDataset(config, mode='val')
     loader = torch.utils.data.DataLoader(dataset, batch_size=128, shuffle=False)
     jit_model = torch.jit.load('./src/silero_vad/data/silero_vad.jit')
     decoder = VADDecoderRNNJIT()
