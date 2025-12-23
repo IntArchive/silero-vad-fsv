@@ -6,7 +6,7 @@ from tqdm import tqdm
 from sklearn.metrics import roc_auc_score
 from omegaconf import OmegaConf
 import torch.nn as nn
-from ..tuning.utils import VADDecoderRNNJIT, SileroVadDataset
+from ..tuning.utils import VADDecoderRNNJIT, SileroVadDataset, SileroVadPadder
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -97,11 +97,12 @@ def validate(loader,
     return losses.avg, round(score, 3)
 
 if __name__ == '__main__':
-    config = OmegaConf.load('./tuning/config.yml')
+    config = OmegaConf.load('./silero-vad-fsv/tuning/config.yml')
     dataset = SileroVadDataset(config, mode='val')
-    loader = torch.utils.data.DataLoader(dataset, batch_size=128, shuffle=False)
-    jit_model = torch.jit.load('./src/silero_vad/data/silero_vad.jit')
+    loader = torch.utils.data.DataLoader(dataset, batch_size=128, collate_fn=SileroVadPadder,shuffle=False)
+    jit_model = torch.jit.load('./silero-vad-fsv/src/silero_vad/data/silero_vad.jit')
     decoder = VADDecoderRNNJIT()
     criterion = nn.BCELoss()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    validate(loader, jit_model, decoder, criterion, device)
+    loss, score = validate(loader, jit_model, decoder, criterion, device)
+    print(f'Loss: {loss}, Score: {score}')
