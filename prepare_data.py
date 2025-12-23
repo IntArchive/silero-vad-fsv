@@ -17,6 +17,10 @@ COMMAND_TO_RUN = \
 python prepare_data.py ./datasets/vad1/data.json ./datasets/vad1/data.feather \
     --parent-path /home/haidm/Documents/My_git/silero-vad-fsv/datasets/vad1/files/vfva
 
+python prepare_data.py ./datasets/vad_1/data.json ./datasets/vad_1/data.feather \
+    --parent-path /home/hcmintern/haidm18/silero-vad-fsv/datasets/vad_1/files/vfva
+    
+
 # Skip missing files instead of erroring
 python prepare_data.py ./datasets/vad1/data.json ./datasets/vad1/data.feather \
     --parent-path /path/to/audio/files --skip-missing

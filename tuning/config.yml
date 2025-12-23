@@ -2,8 +2,8 @@ jit_model_path: './src/silero_vad/data/silero_vad.jit'
 use_torchhub: True  
 
 tune_8k: False  
-train_dataset_path: '/content/silero-vad-fsv/datasets/MLS/train.feather'  
-val_dataset_path: '/content/silero-vad-fsv/datasets/MLS/test.feather'  
+train_dataset_path: './datasets/vad_1/train.feather'  
+val_dataset_path: './datasets/vad_1/test.feather'  
 model_save_path: 'model_save_path.jit'  
 
 noise_loss: 0.5  
