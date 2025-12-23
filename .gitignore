@@ -3,4 +3,4 @@ datasets/mls_polish_opus
 mls_polish_opus.tar.gz
 datasets/vad1/
 temp.ipynb
-
+/*.md
