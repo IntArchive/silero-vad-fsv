@@ -47,8 +47,7 @@ if __name__ == '__main__':
     decoder.load_state_dict(model._model_8k.decoder.state_dict() if config.tune_8k else model._model.decoder.state_dict())
     decoder.train()
     params = decoder.parameters()
-    optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, params),
-                                 lr=config.learning_rate)
+    optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, params), lr=config.learning_rate)
     criterion = nn.BCELoss(reduction='none')
 
     best_val_roc = 0
