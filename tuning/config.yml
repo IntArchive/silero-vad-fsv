@@ -4,7 +4,8 @@ use_torchhub: True
 tune_8k: False  
 train_dataset_path: './datasets/vad_1/train.feather'  
 val_dataset_path: './datasets/vad_1/test.feather'  
-model_save_path: 'model_save_path.jit'  
+model_save_path: 'model_save_path.onnx'
+onnx_opset_version: 16  
 
 noise_loss: 0.5  
 max_train_length_sec: 8  

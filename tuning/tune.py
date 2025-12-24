@@ -1,4 +1,4 @@
-from utils import SileroVadDataset, SileroVadPadder, VADDecoderRNNJIT, train, validate, init_jit_model, save_checkpoint
+from utils import SileroVadDataset, SileroVadPadder, VADDecoderRNNJIT, train, validate, init_jit_model, save_checkpoint, export_model_to_onnx
 from omegaconf import OmegaConf
 import torch.nn as nn
 import torch
@@ -83,7 +83,14 @@ if __name__ == '__main__':
                 model._model_8k.decoder.load_state_dict(decoder.state_dict())
             else:
                 model._model.decoder.load_state_dict(decoder.state_dict())
-            torch.jit.save(model, config.model_save_path)
+            
+            # Export to ONNX format
+            export_model_to_onnx(
+                model, 
+                config.model_save_path, 
+                tune_8k=config.tune_8k,
+                opset_version=getattr(config, 'onnx_opset_version', 16)
+            )
         
 
     # Close the writer

@@ -360,6 +360,75 @@ def init_jit_model(model_path: str,
     return model
 
 
+def export_model_to_onnx(model, output_path: str, tune_8k: bool = False, opset_version: int = 16):
+    """
+    Export the trained Silero VAD model to ONNX format.
+    
+    The JIT model is called with (audio_chunk, sample_rate) and returns speech probability.
+    For ONNX export, we need to trace the model with proper dummy inputs.
+    
+    Args:
+        model: The trained JIT model with updated decoder weights
+        output_path: Path where the ONNX model will be saved
+        tune_8k: Whether the model was tuned for 8kHz (affects input dimensions)
+        opset_version: ONNX opset version to use (default: 16)
+    """
+    import os
+    model.eval()
+    
+    # Reset model states before export
+    if hasattr(model, 'reset_states'):
+        model.reset_states()
+    
+    # Determine input dimensions based on sample rate
+    # The model expects audio chunks of specific size: 512 samples for 16kHz, 256 for 8kHz
+    num_samples = 256 if tune_8k else 512
+    sample_rate = 8000 if tune_8k else 16000
+    
+    # Create dummy input: [batch_size, num_samples]
+    # This matches what the model expects when called: model(audio_chunk, sr)
+    dummy_input = torch.zeros(1, num_samples, dtype=torch.float32)
+    dummy_sr = torch.tensor(sample_rate, dtype=torch.int64)
+    
+    # Create output directory if it doesn't exist
+    output_dir = os.path.dirname(output_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+    
+    # Export to ONNX
+    # The JIT model signature is: model(audio_chunk, sample_rate) -> output
+    # For ONNX, we export with input names matching the expected ONNX interface
+    with torch.no_grad():
+        try:
+            torch.onnx.export(
+                model,
+                (dummy_input, dummy_sr),
+                output_path,
+                input_names=['input', 'sr'],
+                output_names=['output'],
+                dynamic_axes={
+                    'input': {0: 'batch_size', 1: 'sequence_length'},
+                    'output': {0: 'batch_size'}
+                },
+                opset_version=opset_version,
+                do_constant_folding=True,
+                verbose=False
+            )
+        except Exception as e:
+            # If the model has state management, we might need to handle it differently
+            # Try exporting with state if the first attempt fails
+            print(f"Warning: Standard export failed: {e}")
+            print("Attempting export with state handling...")
+            # Reset states and try again
+            if hasattr(model, 'reset_states'):
+                model.reset_states()
+            # Some JIT models might need to be traced differently
+            # For now, re-raise the error to see what's needed
+            raise
+    
+    print(f'✓ Model exported to ONNX format: {output_path}')
+
+
 def predict(model, loader, device, sr):
     with torch.no_grad():
         all_predicts = []
